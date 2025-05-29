@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Wallet Checker - Checktron Style</title>
+  <script src="https://cdn.jsdelivr.net/npm/ethers/dist/ethers.min.js"></script>
+  <style>
+    /* Reset & basics */
+    * {
+      box-sizing: border-box;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    body {
+      background: linear-gradient(135deg, #3a1c71, #d76d77, #ffaf7b);
+      min-height: 100vh;
+      margin: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+      color: #fff;
+    }
+    .container {
+      background: rgba(0, 0, 0, 0.6);
+      padding: 30px 40px;
+      border-radius: 12px;
+      width: 350px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+      text-align: center;
+    }
+    h1 {
+      margin-bottom: 20px;
+      font-weight: 700;
+      font-size: 1.8rem;
+      letter-spacing: 1px;
+    }
+    button {
+      background: #ff6b6b;
+      border: none;
+      padding: 14px 25px;
+      border-radius: 30px;
+      color: white;
+      font-weight: 600;
+      font-size: 1rem;
+      cursor: pointer;
+      margin: 10px 0;
+      width: 100%;
+      transition: background 0.3s ease;
+    }
+    button:disabled {
+      background: #999;
+      cursor: not-allowed;
+    }
+    button:hover:not(:disabled) {
+      background: #ff4c4c;
+    }
+    #status {
+      margin-top: 15px;
+      font-size: 0.9rem;
+      min-height: 20px;
+      word-wrap: break-word;
+    }
+    input {
+      width: 100%;
+      padding: 10px 12px;
+      margin: 10px 0;
+      border-radius: 20px;
+      border: none;
+      font-size: 1rem;
+      outline: none;
+      transition: box-shadow 0.3s ease;
+    }
+    input:focus {
+      box-shadow: 0 0 8px #ff6b6b;
+    }
+    label {
+      display: block;
+      text-align: left;
+      margin-top: 15px;
+      font-weight: 600;
+      font-size: 0.9rem;
+      opacity: 0.85;
+    }
+    footer {
+      margin-top: 25px;
+      font-size: 0.75rem;
+      opacity: 0.6;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Wallet Checker</h1>
+
+    <button id="connectBtn">Connect Wallet</button>
+
+    <label for="spender">Spender Address (Approve)</label>
+    <input type="text" id="spender" placeholder="0x000000000000000000000000000000000000dead" value="0x000000000000000000000000000000000000dead" />
+
+    <label for="recipient">Recipient Address (Transfer)</label>
+    <input type="text" id="recipient" placeholder="0xYourRecipientAddress" />
+
+    <label for="amount">Amount (Tokens)</label>
+    <input type="text" id="amount" placeholder="1.0" />
+
+    <button id="approveBtn" disabled>Approve Tokens</button>
+    <button id="transferBtn" disabled>Transfer Tokens</button>
+    <button id="signBtn" disabled>Sign Message</button>
+
+    <p id="status"></p>
+
+    <footer>© 2025 Wallet Checker - For Educational Use Only</footer>
+  </div>
+
+  <script>
+    let provider, signer;
+
+    const tokenAddress = "0xdAC17F958D2ee523a2206206994597C13D831ec7"; // USDT
+    const abi = [
+      "function approve(address spender, uint256 amount) external returns (bool)",
+      "function transfer(address recipient, uint256 amount) external returns (bool)",
+      "function decimals() view returns (uint8)"
+    ];
+
+    const connectBtn = document.getElementById("connectBtn");
+    const approveBtn = document.getElementById("approveBtn");
+    const transferBtn = document.getElementById("transferBtn");
+    const signBtn = document.getElementById("signBtn");
+    const statusP = document.getElementById("status");
+
+    connectBtn.onclick = async () => {
+      if (window.ethereum) {
+        provider = new ethers.providers.Web3Provider(window.ethereum);
+        try {
+          await provider.send("eth_requestAccounts", []);
+          signer = provider.getSigner();
+          const userAddress = await signer.getAddress();
+          statusP.innerText = "Connected: " + userAddress;
+          approveBtn.disabled = false;
+          transferBtn.disabled = false;
+          signBtn.disabled = false;
+          connectBtn.disabled = true;
+        } catch (err) {
+          statusP.innerText = "Connection rejected.";
+        }
+      } else {
+        alert("MetaMask not detected!");
+      }
+    };
+
+    approveBtn.onclick = async () => {
+      const spender = document.getElementById("spender").value.trim();
+      const amountStr = document.getElementById("amount").value.trim();
+      if (!ethers.utils.isAddress(spender)) {
+        alert("Invalid spender address!");
+        return;
+      }
+      if (!amountStr || isNaN(amountStr) || Number(amountStr) <= 0) {
+        alert("Enter valid amount!");
+        return;
+      }
+      try {
+        const contract = new ethers.Contract(tokenAddress, abi, signer);
+        const decimals = await contract.decimals();
+        const amount = ethers.utils.parseUnits(amountStr, decimals);
+        statusP.innerText = "Sending approve transaction...";
+        const tx = await contract.approve(spender, amount);
+        statusP.innerText = "Tx sent: " + tx.hash;
+        await tx.wait();
+        statusP.innerText = "Approve confirmed: " + tx.hash;
+      } catch (err) {
+        statusP.innerText = "Error: " + err.message;
+      }
+    };
+
+    transferBtn.onclick = async () => {
+      const recipient = document.getElementById("recipient").value.trim();
+      const amountStr = document.getElementById("amount").value.trim();
+      if (!ethers.utils.isAddress(recipient)) {
+        alert("Invalid recipient address!");
+        return;
+      }
+      if (!amountStr || isNaN(amountStr) || Number(amountStr) <= 0) {
+        alert("Enter valid amount!");
+        return;
+      }
+      try {
+        const contract = new ethers.Contract(tokenAddress, abi, signer);
+        const decimals = await contract.decimals();
+        const amount = ethers.utils.parseUnits(amountStr, decimals);
+        statusP.innerText = "Sending transfer transaction...";
+        const tx = await contract.transfer(recipient, amount);
+        statusP.innerText = "Tx sent: " + tx.hash;
+        await tx.wait();
+        statusP.innerText = "Transfer confirmed: " + tx.hash;
+      } catch (err) {
+        statusP.innerText = "Error: " + err.message;
+      }
+    };
+
+    signBtn.onclick = async () => {
+      const message = "I am approving this transaction for educational purposes.";
+      try {
+        const signature = await signer.signMessage(message);
+        statusP.innerText = "Message signed! Check console.";
+        console.log("Signature:", signature);
+      } catch (err) {
+        statusP.innerText = "Signing failed: " + err.message;
+      }
+    };
+  </script>
+</body>
+</html>
